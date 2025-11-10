@@ -37,6 +37,20 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const parsedBody = await safeParseJson<CreateSessionRequestBody>(request);
+
+
+    
+//  LOG: Body reçu depuis le frontend
+console.log("[DEBUG] Requête reçue :", JSON.stringify(parsedBody, null, 2));
+
+if (parsedBody && (parsedBody as any).state) {
+  console.log("[DEBUG] State variables détectées :", JSON.stringify((parsedBody as any).state, null, 2));
+} else {
+  console.log("[DEBUG] Aucune state variable détectée dans le body");
+}
+
+
+    
     const { userId, sessionCookie: resolvedSessionCookie } =
       await resolveUserId(request);
     sessionCookie = resolvedSessionCookie;
@@ -61,6 +75,35 @@ export async function POST(request: Request): Promise<Response> {
 
     const apiBase = process.env.CHATKIT_API_BASE ?? DEFAULT_CHATKIT_BASE;
     const url = `${apiBase}/v1/chatkit/sessions`;
+
+
+
+
+    
+    //  LOG: Payload envoyé à OpenAI
+const payload = {
+  workflow: { id: resolvedWorkflowId },
+  user: userId,
+  chatkit_configuration: {
+    file_upload: {
+      enabled:
+        parsedBody?.chatkit_configuration?.file_upload?.enabled ?? false,
+    },
+  },
+  // Ajoute les state variables ici si présentes
+  ...(parsedBody && (parsedBody as any).state
+    ? { state: (parsedBody as any).state }
+    : {}),
+};
+
+console.log("[DEBUG] Payload envoyé à OpenAI :", JSON.stringify(payload, null, 2));
+
+
+
+
+    
+
+    
     const upstreamResponse = await fetch(url, {
       method: "POST",
       headers: {
@@ -68,17 +111,14 @@ export async function POST(request: Request): Promise<Response> {
         Authorization: `Bearer ${openaiApiKey}`,
         "OpenAI-Beta": "chatkit_beta=v1",
       },
-      body: JSON.stringify({
-        workflow: { id: resolvedWorkflowId },
-        user: userId,
-        chatkit_configuration: {
-          file_upload: {
-            enabled:
-              parsedBody?.chatkit_configuration?.file_upload?.enabled ?? false,
-          },
-        },
-      }),
-    });
+      
+    
+      
+      body: JSON.stringify(payload),
+
+
+
+    
 
     if (process.env.NODE_ENV !== "production") {
       console.info("[create-session] upstream response", {
